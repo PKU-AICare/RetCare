@@ -129,14 +129,14 @@ disease_chinese = {
 }
 
 disease_english = {
-    "diabetes": 'Diabete',
-    "heart_failure": 'Heart failure',
-    "lung_infect": 'Lung infection',
-    "chd": 'Coronary heart disease',
-    "mi": 'Myocardial infarction',
-    "ci": 'Cerebral infarction',
-    "ch": 'Cerebral hemorrhage',
-    "amputation": 'Amputation'
+    "Diabetes": 'Diabetes',
+    "Heart_failure": 'Heart failure',
+    "Lung_infect": 'Lung infection',
+    "CHD": 'Coronary heart disease',
+    "MI": 'Myocardial infarction',
+    "CI": 'Cerebral infarction',
+    "CH": 'Cerebral hemorrhage',
+    "Amputation": 'Amputation'
 }
 
 original_disease = {
