@@ -14,7 +14,6 @@ corpus_names = {
 }
 
 retriever_names = {
-    "BM25": "bm25",
     "MedCPT": "ncbi/MedCPT-Query-Encoder",
 }
 
@@ -23,7 +22,7 @@ retriever_paths = {
 }
 
 class CustomizeSentenceTransformer(SentenceTransformer): # change the default pooling "MEAN" to "CLS"
-    def _load_auto_model(self, model_name_or_path):
+    def _load_auto_model(self, model_name_or_path, **kwargs):
         """
         Creates a simple Transformer + CLS Pooling model and returns the modules
         """
@@ -34,7 +33,6 @@ class CustomizeSentenceTransformer(SentenceTransformer): # change the default po
 
 
 def embed(chunk_dir, index_dir, model_name, **kwarg):
-
     save_dir = os.path.join(index_dir, "embedding")
     model = CustomizeSentenceTransformer(model_name, device="cuda" if torch.cuda.is_available() else "cpu")
     model.eval()
@@ -53,26 +51,17 @@ def embed(chunk_dir, index_dir, model_name, **kwarg):
             if open(fpath).read().strip() == "":
                 continue
             texts = [json.loads(item) for item in open(fpath).read().strip().split('\n')]
-            if "specter" in model_name.lower():
-                texts = [model.tokenizer.sep_token.join([item["title"], item["content"]]) for item in texts]
-            elif "contriever" in model_name.lower():
-                texts = [". ".join([item["title"], item["content"]]).replace('..', '.').replace("?.", "?") for item in texts]
-            elif "medcpt" in model_name.lower():
-                texts = [[item["title"], item["content"]] for item in texts]
+            texts = [[item["title"], item["content"]] for item in texts]
             embed_chunks = model.encode(texts, **kwarg)
             np.save(save_path, embed_chunks)
         embed_chunks = model.encode([""], **kwarg)
     return embed_chunks.shape[-1]
 
 def construct_index(index_dir, model_name, h_dim=768):
-
     with open(os.path.join(index_dir, "metadatas.jsonl"), 'w') as f:
         f.write("")
     
-    if "specter" in model_name.lower():
-        index = faiss.IndexFlatL2(h_dim)
-    else:
-        index = faiss.IndexFlatIP(h_dim)
+    index = faiss.IndexFlatIP(h_dim)
 
     for fname in tqdm.tqdm(sorted(os.listdir(os.path.join(index_dir, "embedding")))):
         curr_embed = np.load(os.path.join(index_dir, "embedding", fname))
@@ -85,64 +74,45 @@ def construct_index(index_dir, model_name, h_dim=768):
 
 
 class Retriever: 
-    def __init__(self, retriever_name="ncbi/MedCPT-Query-Encoder", retriever_path=None, corpus_name="textbooks", db_dir="./corpus", **kwarg):
+    def __init__(self, retriever_name: str="ncbi/MedCPT-Query-Encoder", retriever_path: str=None, corpus_name: str="textbooks", corpus_dir: str="./corpus", **kwargs):
         self.retriever_name = retriever_name
         self.retriever_path = retriever_path
         self.corpus_name = corpus_name
 
-        self.db_dir = db_dir
-        if not os.path.exists(self.db_dir):
-            os.makedirs(self.db_dir)
-        self.chunk_dir = os.path.join(self.db_dir, self.corpus_name, "chunk")
-        if not os.path.exists(self.chunk_dir):
-            print("Cloning the {:s} corpus from Huggingface...".format(self.corpus_name))
-            os.system("git clone https://huggingface.co/datasets/MedRAG/{:s} {:s}".format(corpus_name, os.path.join(self.db_dir, self.corpus_name)))
-            if self.corpus_name == "statpearls":
-                print("Downloading the statpearls corpus from NCBI bookshelf...")
-                os.system("wget https://ftp.ncbi.nlm.nih.gov/pub/litarch/3d/12/statpearls_NBK430685.tar.gz -P {:s}".format(os.path.join(self.db_dir, self.corpus_name)))
-                os.system("tar -xzvf {:s} -C {:s}".format(os.path.join(db_dir, self.corpus_name, "statpearls_NBK430685.tar.gz"), os.path.join(self.db_dir, self.corpus_name)))
-                print("Chunking the statpearls corpus...")
-                os.system("python src/data/statpearls.py")
-        self.index_dir = os.path.join(self.db_dir, self.corpus_name, "index", self.retriever_name.replace("Query-Encoder", "Article-Encoder"))
-        if "bm25" in self.retriever_name.lower():
-            from pyserini.search.lucene import LuceneSearcher
-            self.metadatas = None
-            self.embedding_function = None
-            if os.path.exists(self.index_dir):
-                self.index = LuceneSearcher(os.path.join(self.index_dir))
-            else:
-                os.system("python -m pyserini.index.lucene --collection JsonCollection --input {:s} --index {:s} --generator DefaultLuceneDocumentGenerator --threads 16".format(self.chunk_dir, self.index_dir))
-                self.index = LuceneSearcher(os.path.join(self.index_dir))
+        self.corpus_dir = corpus_dir
+        if not os.path.exists(self.corpus_dir):
+            os.makedirs(self.corpus_dir)
+        self.chunk_dir = os.path.join(self.corpus_dir, self.corpus_name, "chunk")
+        self.index_dir = os.path.join(self.corpus_dir, self.corpus_name, "index", self.retriever_name.replace("Query-Encoder", "Article-Encoder"))
+        if os.path.exists(os.path.join(self.index_dir, "faiss.index")):
+            print("[In progress] Loading the {:s} corpus with the {:s} retriever...".format(self.corpus_name, self.retriever_name.replace("Query-Encoder", "Article-Encoder")))
+            self.index = faiss.read_index(os.path.join(self.index_dir, "faiss.index"))
+            self.metadatas = [json.loads(line) for line in open(os.path.join(self.index_dir, "metadatas.jsonl")).read().strip().split('\n')]
+            print("[Finished] Corpus loading finished!")
         else:
-            if os.path.exists(os.path.join(self.index_dir, "faiss.index")):
-                print("[In progress] Loading the {:s} corpus with the {:s} retriever...".format(self.corpus_name, self.retriever_name.replace("Query-Encoder", "Article-Encoder")))
-                self.index = faiss.read_index(os.path.join(self.index_dir, "faiss.index"))
-                self.metadatas = [json.loads(line) for line in open(os.path.join(self.index_dir, "metadatas.jsonl")).read().strip().split('\n')]
-                print("[Finished] Corpus loading finished!")
+            print("[In progress] Embedding the {:s} corpus with the {:s} retriever...".format(self.corpus_name, self.retriever_name.replace("Query-Encoder", "Article-Encoder")))
+            if os.path.exists(self.retriever_path.replace("Query-Encoder", "Article-Encoder")):
+                h_dim = embed(chunk_dir=self.chunk_dir, index_dir=self.index_dir, model_name=self.retriever_path.replace("Query-Encoder", "Article-Encoder"), **kwargs)
             else:
-                print("[In progress] Embedding the {:s} corpus with the {:s} retriever...".format(self.corpus_name, self.retriever_name.replace("Query-Encoder", "Article-Encoder")))
-                h_dim = embed(chunk_dir=self.chunk_dir, index_dir=self.index_dir, model_name=self.retriever_name.replace("Query-Encoder", "Article-Encoder"), **kwarg)
-                print("[In progress] Embedding finished! The dimension of the embeddings is {:d}.".format(h_dim))
-                self.index = construct_index(index_dir=self.index_dir, model_name=self.retriever_name.replace("Query-Encoder", "Article-Encoder"), h_dim=h_dim)
-                print("[Finished] Corpus indexing finished!")
-                self.metadatas = [json.loads(line) for line in open(os.path.join(self.index_dir, "metadatas.jsonl")).read().strip().split('\n')]            
+                h_dim = embed(chunk_dir=self.chunk_dir, index_dir=self.index_dir, model_name=self.retriever_name.replace("Query-Encoder", "Article-Encoder"), **kwargs)
+            print("[In progress] Embedding finished! The dimension of the embeddings is {:d}.".format(h_dim))
+            self.index = construct_index(index_dir=self.index_dir, h_dim=h_dim)
+            print("[Finished] Corpus indexing finished!")
+            self.metadatas = [json.loads(line) for line in open(os.path.join(self.index_dir, "metadatas.jsonl")).read().strip().split('\n')]
+        if os.path.exists(self.retriever_path):
             self.embedding_function = CustomizeSentenceTransformer(self.retriever_path, device="cuda" if torch.cuda.is_available() else "cpu")
-            self.embedding_function.eval()
+        else:
+            self.embedding_function = CustomizeSentenceTransformer(self.retriever_name, device="cuda" if torch.cuda.is_available() else "cpu")
+        self.embedding_function.eval()
 
     def get_relevant_documents(self, question, k=32, **kwarg):
         assert type(question) == str
         question = [question]
 
-        if "bm25" in self.retriever_name.lower():
-            res_ = [[]]
-            hits = self.index.search(question[0], k=k)
-            res_[0].append(np.array([h.score for h in hits]))
-            indices = [{"source": '_'.join(h.docid.split('_')[:-1]), "index": eval(h.docid.split('_')[-1])} for h in hits]
-        else:
-            with torch.no_grad():
-                query_embed = self.embedding_function.encode(question, **kwarg)
-            res_ = self.index.search(query_embed, k=k)
-            indices = [self.metadatas[i] for i in res_[1][0]]
+        with torch.no_grad():
+            query_embed = self.embedding_function.encode(question, **kwarg)
+        res_ = self.index.search(query_embed, k=k)
+        indices = [self.metadatas[i] for i in res_[1][0]]
 
         texts = self.idx2txt(indices)
         scores = res_[0][0].tolist()
@@ -167,7 +137,7 @@ class RetrievalSystem:
         corpus_name = corpus_names[self.corpus_name]
         self.retriever = Retriever(retriever_name, retriever_path, corpus_name, db_dir)
     
-    def retrieve(self, question, k=32, rrf_k=100):
+    def retrieve(self, question, k=16):
         '''
             Given questions, return the relevant snippets from the corpus
         '''
