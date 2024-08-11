@@ -4,8 +4,8 @@ import json
 from openai import OpenAI
 import ollama
 
-from template import *
-from config import tech_config, deep_config
+from .template import *
+from .config import tech_config, deep_config
 
 config = deep_config
 
