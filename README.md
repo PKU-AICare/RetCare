@@ -7,3 +7,18 @@ RetCare is a workflow designed to enhance the interpretability and reliability o
 - **Integration of Authoritative Medical Knowledge**: Uses PubMed to validate prediction results and feature importance.
 - **Comprehensive Prompting Strategies**: Develops prompts to integrate model outputs with healthcare context.
 - **Interpretable Reasoning Capacities**: Provides detailed explanations and refined predictions using LLMs.
+
+## Environmental Setups
+
+- Create an environment `colacare` and activate it.
+
+```bash
+conda create -n colacare python=3.9
+conda activate colacare
+```
+
+- Install the required packages.
+
+```bash
+pip install -r requirements.txt
+```
