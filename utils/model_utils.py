@@ -1,9 +1,5 @@
-from typing import Dict
 import os
-import random
-import requests
 
-import torch
 import pandas as pd
 import numpy as np
 from sklearn.decomposition import PCA
