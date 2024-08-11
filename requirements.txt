@@ -1,0 +1,13 @@
+faiss_cpu
+faiss-gpu
+python-liquid
+numpy
+ollama
+openai
+pandas
+scikit_learn
+sentence_transformers
+tenacity
+tiktoken
+torch
+tqdm
