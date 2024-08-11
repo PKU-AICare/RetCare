@@ -1,5 +1,5 @@
 faiss_cpu
-faiss-gpu
+faiss_gpu
 python-liquid
 numpy
 ollama
