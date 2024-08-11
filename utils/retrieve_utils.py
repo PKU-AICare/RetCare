@@ -105,7 +105,7 @@ class Retriever:
             self.embedding_function = CustomizeSentenceTransformer(self.retriever_name, device="cuda" if torch.cuda.is_available() else "cpu")
         self.embedding_function.eval()
 
-    def get_relevant_documents(self, question, k=32, **kwarg):
+    def get_relevant_documents(self, question, k=16, **kwarg):
         assert type(question) == str
         question = [question]
 
