@@ -67,7 +67,7 @@ class RetCare:
         else:
             self.model = llm_name
 
-    def answer(self, hcontext, keywords=None, k=32, rrf_k=100, save_dir=None):
+    def answer(self, hcontext, keywords=None, k=16, save_dir=None):
         '''
         hcontext (str): healthcare context of a patient
         keywords: list of keywords to retrieve relevant snippets
@@ -77,9 +77,9 @@ class RetCare:
 
         # retrieve relevant snippets using keywords or question
         if keywords is not None:
-            retrieved_snippets, scores = self.retrieval_system.retrieve(keywords, k=k, rrf_k=rrf_k)
+            retrieved_snippets, scores = self.retrieval_system.retrieve(keywords, k=k)
         else:
-            retrieved_snippets, scores = self.retrieval_system.retrieve(hcontext, k=k, rrf_k=rrf_k)
+            retrieved_snippets, scores = self.retrieval_system.retrieve(hcontext, k=k)
         
         contexts = ["Document [{:d}] (Title: {:s}) {:s}".format(idx, retrieved_snippets[idx]["title"], retrieved_snippets[idx]["content"]) for idx in range(len(retrieved_snippets))]
         if len(contexts) == 0:
@@ -129,7 +129,7 @@ class RetCare:
 
         return ans, retrieved_snippets, scores, messages
 
-    # @retry(wait=wait_random_exponential(min=1, max=60), stop=stop_after_attempt(6))
+    @retry(wait=wait_random_exponential(min=1, max=60), stop=stop_after_attempt(6))
     def generate(self, messages):
         '''
         generate response given messages
