@@ -1,7 +1,4 @@
-import json
-import pdb
 import os
-import requests
 from typing import List, Dict
 
 import torch
@@ -9,7 +6,7 @@ import pandas as pd
 import numpy as np
 
 from .ckd_info import medical_standard, disease_english, medical_name, medical_unit, original_disease
-from .model_utils import run_concare, run_ml_models, get_data_from_files, get_similar_patients
+from .model_utils import get_data_from_files
 
 
 def get_var_desc(var: float):
@@ -73,7 +70,6 @@ def get_distribution(data, values):
 
 
 def format_input_ehr(raw_x: List[List[float]], features: List[str]):
-    raw_x = np.array(raw_x)[:, 2:]
     ehr = ""
     for i, feature in enumerate(features):
         name = medical_name[feature] if feature in medical_name else feature
@@ -106,6 +102,10 @@ def generate_prompt(dataset: str, data_url: str, patient_index: int, patient_id:
     last_visit_context = f"We have {len(models)} models {', '.join(models)} to predict the mortality risk and estimate the feature importance weight for the patient in the last visit:\n"
     for model in models:
         _, raw_x, features, y, important_features = get_data_from_files(data_url, model, patient_index)
+        if dataset == 'ckd':
+            raw_x = np.array(raw_x)[:, 4:]
+        else:
+            raw_x =  np.array(raw_x)[:, 2:]
         ehr_context = "Here is complete medical information from multiple visits of a patient, with each feature within this data as a string of values separated by commas.\n" + format_input_ehr(raw_x, features)
 
         last_visit = f"The mortality prediction risk for the patient from {model} model is {round(float(y), 2)} out of 1.0, which means the patient is at {get_death_desc(float(y))} of death risk. Our model especially pays great attention to following features:\n"
